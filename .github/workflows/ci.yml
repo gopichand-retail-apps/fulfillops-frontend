@@ -1,0 +1,60 @@
+name: FulfillOps frontend quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fulfillops-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage thresholds
+        run: npm run test:cov
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test mock API selection
+        run: VITE_IS_MOCK=true npm run test:e2e -- --output=/tmp/fulfillops-e2e-mock
+
+      - name: Test live API selection
+        run: VITE_IS_MOCK=false npm run test:e2e -- --output=/tmp/fulfillops-e2e-live
+
+      - name: Build
+        env:
+          VITE_IS_MOCK: 'true'
+          VITE_MOCK_API_BASE_URL: http://127.0.0.1:5202/api/v1
+        run: npm run build

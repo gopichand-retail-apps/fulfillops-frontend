@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "complexity": ["error", 15],
+    "max-depth": ["error", 3],
+    "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }]
+  }
+}
