@@ -44,6 +44,11 @@ jobs:
       - name: Audit dependencies
         run: npm audit
 
+      - name: Check out backend for end-to-end tests
+        run: |
+          git clone --depth 1 https://github.com/gopichand-retail-apps/fulfillops-backend.git ../fulfillops-backend
+          npm --prefix ../fulfillops-backend install --no-audit --no-fund
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
