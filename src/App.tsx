@@ -110,7 +110,7 @@ function App({ initialNow }: AppProps) {
     setMobileDetailOpen(false)
   }
 
-  const { pendingAction, notice, setNotice, runAction } = useFulfillmentAction({
+  const { pendingAction, notice, setNotice, runAction, discardAwaiting } = useFulfillmentAction({
     order: selectedOrder,
     refreshData,
   })
@@ -134,7 +134,10 @@ function App({ initialNow }: AppProps) {
           view={view}
           profiles={profiles}
           rolesLoading={rolesLoading}
-          onProfileChange={(profileId) => void changeProfile(profileId)}
+          onProfileChange={(profileId) => {
+            discardAwaiting()
+            void changeProfile(profileId)
+          }}
           onViewChange={chooseView}
         />
 

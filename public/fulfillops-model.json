@@ -144,6 +144,7 @@
     "notice.pack": "Package sealed and ready for shipment.",
     "notice.ship": "Simulated shipment created with ParcelPilot.",
     "notice.return": "Return recorded.",
+    "notice.recovered": "Confirmed. This was already recorded and was not repeated.",
     "errors.requestFailed": "The request could not be completed.",
     "errors.network": "The API could not be reached. Check the local services and retry.",
     "errors.INVALID_TRANSITION": "This action is not available at the current order step.",

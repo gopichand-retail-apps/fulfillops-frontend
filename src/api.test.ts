@@ -181,6 +181,7 @@ describe('FulfillOps API client', () => {
       .mockResolvedValueOnce(jsonResponse({ error: 'raw detail' }, 502))
       .mockResolvedValueOnce(jsonResponse({ code: 'INTERNAL_ERROR', message: 'detail', requestId: 'r-500' }, 500))
       .mockResolvedValueOnce(jsonResponse({ data: 'not a workflow result', requestId: 'r-201' }, 201))
+      .mockResolvedValueOnce(jsonResponse({ unexpected: true }, 201))
     const input = { action: 'allocate', version: 1 } as const
 
     await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
@@ -195,6 +196,10 @@ describe('FulfillOps API client', () => {
       code: 'INVALID_CONTENT',
       status: 201,
     })
+    await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      status: 201,
+    })
   })
 
   it('turns a reply that never arrives into a timeout error', async () => {
@@ -207,6 +212,27 @@ describe('FulfillOps API client', () => {
           }),
       )
       const request = performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0005')
+      const assertion = expect(request).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+
+      await vi.advanceTimersByTimeAsync(ACTION_TIMEOUT_MS)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('turns a reply whose body stops arriving into a timeout error', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation(async (_url, init) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            init?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')))
+          },
+        })
+        return new Response(body, { status: 201, headers: { 'Content-Type': 'application/json' } })
+      })
+      const request = performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0006')
       const assertion = expect(request).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
 
       await vi.advanceTimersByTimeAsync(ACTION_TIMEOUT_MS)

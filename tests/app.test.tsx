@@ -102,6 +102,33 @@ describe('FulfillOps workspace', () => {
     })
   })
 
+  it('reuses the intent key on retry and discards it when the warehouse profile changes', async () => {
+    setupApi()
+    apiMocks.performOrderAction.mockRejectedValue(new TypeError('Failed to fetch'))
+    const user = userEvent.setup()
+    renderWithContent(<App initialNow={Date.parse('2026-11-01T13:00:00.000Z')} />)
+
+    const profileSelect = await screen.findByLabelText('Warehouse profile')
+    await screen.findByRole('button', { name: /FO-48291/ })
+    await user.selectOptions(profileSelect, 'warehouse_manager')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(2))
+
+    await user.selectOptions(profileSelect, 'packer')
+    await user.selectOptions(profileSelect, 'warehouse_manager')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(3))
+
+    const keys = apiMocks.performOrderAction.mock.calls.map((call: unknown[]) => call[2])
+    expect(keys[1]).toBe(keys[0])
+    expect(keys[2]).not.toBe(keys[0])
+  })
+
   it('shows safe API failure and retry behavior', async () => {
     setupApi()
     apiMocks.getOrders.mockRejectedValue(new TypeError('database secret'))
