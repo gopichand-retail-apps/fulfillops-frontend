@@ -1,16 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-
-type Model = { messages: Record<string, string>; data: { itemNames: Record<string, string> } }
-
-async function loadModel(page: Page): Promise<Model> {
-  const response = await page.request.get('/fulfillops-model.json')
-  return (await response.json()) as Model
-}
-
-function copy(model: Model, key: string, values: Record<string, string | number> = {}): string {
-  return model.messages[key].replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (_match, name: string) => String(values[name]))
-}
+import { copy, loadModel } from './model-copy'
 
 async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
