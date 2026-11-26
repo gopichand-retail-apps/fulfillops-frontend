@@ -160,7 +160,8 @@
     "errors.RETURN_REASON_REQUIRED": "Choose a return reason.",
     "errors.ORDER_NOT_FOUND": "Order not found.",
     "errors.INVALID_RESPONSE": "The API returned an invalid response.",
-    "errors.INVALID_CONTENT": "The API returned data that did not match its contract."
+    "errors.INVALID_CONTENT": "The API returned data that did not match its contract.",
+    "errors.REQUEST_TIMEOUT": "The API took too long to answer."
   },
   "data": {
     "warehouseName": "North DC",

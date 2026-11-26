@@ -94,10 +94,11 @@ describe('FulfillOps workspace', () => {
 
     await user.click(allocate)
     await waitFor(() => {
-      expect(apiMocks.performOrderAction).toHaveBeenCalledWith('FO-48291', {
-        action: 'allocate',
-        version: 1,
-      })
+      expect(apiMocks.performOrderAction).toHaveBeenCalledWith(
+        'FO-48291',
+        { action: 'allocate', version: 1 },
+        expect.any(String),
+      )
     })
   })
 

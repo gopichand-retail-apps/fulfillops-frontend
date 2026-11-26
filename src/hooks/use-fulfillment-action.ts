@@ -24,10 +24,7 @@ export function useFulfillmentAction({ order, refreshData }: UseFulfillmentActio
       setNotice(null)
 
       try {
-        await performOrderAction(order.id, {
-          ...action,
-          version: order.version,
-        })
+        await performOrderAction(order.id, { ...action, version: order.version }, crypto.randomUUID())
         setNotice({ tone: 'success', message: t(`notice.${action.action}`) })
         refreshData()
       } catch (error) {
