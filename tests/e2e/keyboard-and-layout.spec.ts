@@ -95,3 +95,25 @@ test('a picker opens an order, picks a unit and goes back using only the keyboar
   await expect(page.getByRole('button', { name: /FO-48277/ })).toBeFocused()
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
 })
+
+test('the awaiting-confirmation banner fits and has 44 px controls at 320 px', async ({ page }) => {
+  const model = await loadModel(page)
+  await page.route('**/api/v1/orders/FO-48175/actions', (route) => route.abort('connectionreset'))
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.goto('/')
+  const profile = page.getByLabel(copy(model, 'role.simulation'))
+  await profile.selectOption('warehouse_manager')
+  await expect(profile).toHaveValue('warehouse_manager')
+  await page.getByRole('button', { name: /FO-48175/ }).click()
+  await page.getByRole('button', { name: copy(model, 'action.allocate.button') }).click()
+
+  const banner = page.getByRole('alert').filter({ hasText: copy(model, 'awaiting.title') })
+  await expect(banner).toBeVisible()
+  expect(await horizontalOverflow(page), 'banner overflow').toBeLessThanOrEqual(0)
+  for (const key of ['awaiting.retry', 'awaiting.discard']) {
+    const box = await banner.getByRole('button', { name: copy(model, key) }).boundingBox()
+    expect(box?.height ?? 0, key).toBeGreaterThanOrEqual(44)
+  }
+  await banner.getByRole('button', { name: copy(model, 'awaiting.discard') }).click()
+  await expect(banner).toHaveCount(0)
+})

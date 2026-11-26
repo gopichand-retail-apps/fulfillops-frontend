@@ -320,7 +320,7 @@ Keep private credentials out of public models, browser bundles, logs, URLs, and 
 
 ## 9. Design, accessibility, and platform adapters
 
-The existing product styling is authored in [src/App.css](../src/App.css), [src/index.css](../src/index.css). Preserve its tokens, layout density, fonts/assets, breakpoints, and component states. User-facing strings/locale rules follow the active validated model. WCAG 2.2 AA is a target, not a verified conformance claim: keyboard/focus/dialog behavior, zoom/reflow, contrast, reduced motion, and screen readers require their applicable checks. No redesign was performed. Stage B (2026-11-26) added handheld focus rules: opening an order in the handheld layout focuses its heading, Back returns focus to the queue row, focus moves to the next pickable line or the next-action heading after a confirmed change ([src/hooks/use-focus-rescue.ts](../src/hooks/use-focus-rescue.ts)), pending controls use `aria-disabled` so focus is kept, and Back and pick controls are 44 px tall at 820 px and below. Playwright measured no horizontal overflow at 320, 390, 768 and 1280 px in the queue, order detail and returns views; screen-reader, zoom and contrast checks were not run. Native/mobile packaging and device adapters are **not implemented by this web repository**.
+The existing product styling is authored in [src/App.css](../src/App.css), [src/index.css](../src/index.css). Preserve its tokens, layout density, fonts/assets, breakpoints, and component states. User-facing strings/locale rules follow the active validated model. WCAG 2.2 AA is a target, not a verified conformance claim: keyboard/focus/dialog behavior, zoom/reflow, contrast, reduced motion, and screen readers require their applicable checks. No redesign was performed. Stage B (2026-11-26) added handheld focus rules: opening an order in the handheld layout focuses its heading, Back returns focus to the queue row, focus moves to the next pickable line or the next-action heading after a confirmed change ([src/hooks/use-focus-rescue.ts](../src/hooks/use-focus-rescue.ts)), pending controls use `aria-disabled` so focus is kept, and Back, pick and recovery-banner controls are 44 px tall at 820 px and below. Playwright measured no horizontal overflow at 320, 390, 768 and 1280 px in the queue, order detail and returns views; screen-reader, zoom and contrast checks were not run. Native/mobile packaging and device adapters are **not implemented by this web repository**.
 
 ## 10. Build, checks, and deployment
 
@@ -403,7 +403,7 @@ Stage B FUL-04 slice, 2026-11-26, branch `feature/ful-04-packed-today-and-keys`,
 - `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd run build`: passed.
 - `npm.cmd run test:cov`: 100 tests in 18 files passed; statements 95.92%, branches 92.63%, functions 93.84%, lines 97.51%.
 - Portable Prettier check passed; `npm.cmd run format:check` still fails on Windows because the script's single-quoted globs are passed literally (pre-existing).
-- Playwright through `scripts/fulfillops.e2e.config.mjs`: 10 passed with `VITE_IS_MOCK=true` and 10 passed with `VITE_IS_MOCK=false` and `VITE_REAL_API_BASE_URL=http://127.0.0.1:5212/api/v1`.
+- Playwright through `scripts/fulfillops.e2e.config.mjs`: 11 passed with `VITE_IS_MOCK=true` and 11 passed with `VITE_IS_MOCK=false` and `VITE_REAL_API_BASE_URL=http://127.0.0.1:5212/api/v1`.
 - Not run: `npm audit`, hosted CI, Vercel, screen readers, zoom/contrast tooling, real devices.
 
 ## 14. Extension rules and companion repository

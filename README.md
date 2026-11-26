@@ -72,7 +72,7 @@ including the mobile order-detail view. The nonselected endpoint is unreachable
 in each run. `lost-reply-recovery.spec.ts` drops the reply to an applied pick and checks that
 "Retry safely" resends the same key and the order is picked once. `keyboard-and-layout.spec.ts`
 checks for no horizontal overflow at 320, 390, 768 and 1280 px, 44 px handheld controls,
-and a keyboard-only pick at 320 px. On Windows, run the browser checks through
+a keyboard-only pick at 320 px, and the recovery banner at 320 px. On Windows, run the browser checks through
 `../../scripts/fulfillops.e2e.config.mjs` after building the API (entry `dist/src/main.js`).
 
 ## Write safety and recovery
@@ -93,7 +93,7 @@ Allocate, pick, pack, ship and return requests follow the stable intent key patt
 Keyboard and handheld use: opening an order in the handheld layout moves focus to the order heading; Back returns
 focus to the same queue row; after each confirmed change focus moves to the next pickable line (or the next-action
 heading); controls stay focusable while a request is pending; a confirmed pick announces the remaining quantity
-through the status message. Handheld Back and pick controls are at least 44 px tall. The "Packed today" figure is
+through the status message. Handheld Back, pick and recovery-banner controls are at least 44 px tall. The "Packed today" figure is
 computed by the API (see the backend README for `WAREHOUSE_TIME_ZONE`).
 
 ## Demo limits

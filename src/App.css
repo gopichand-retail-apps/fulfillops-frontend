@@ -1659,7 +1659,9 @@
     width: 44px;
     height: 44px;
   }
-  .pick-unit {
+  .pick-unit,
+  .awaiting-actions .button-primary,
+  .awaiting-actions .button-secondary {
     min-height: 44px;
   }
   .queue-panel {
