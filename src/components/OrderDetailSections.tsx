@@ -103,7 +103,7 @@ export function OrderItems({ order, role, pendingAction, onAction }: OrderItemsP
       <div className="item-list">
         {order.items.map((item) => {
           const complete = item.pickedQuantity >= item.orderedQuantity
-          const canPick = isPickStep && role === 'picker' && !complete && !pendingAction
+          const canPick = isPickStep && role === 'picker' && !complete
           const itemName = itemNames[item.sku] ?? t('page.orderDetails.unknownItem')
           return (
             <article className="item-row" key={item.sku}>
@@ -124,7 +124,10 @@ export function OrderItems({ order, role, pendingAction, onAction }: OrderItemsP
                   className={complete ? 'pick-unit picked' : 'pick-unit'}
                   type="button"
                   disabled={!canPick}
-                  onClick={() => onAction({ action: 'pick', sku: item.sku, quantity: 1 })}
+                  aria-disabled={pendingAction ? true : undefined}
+                  onClick={() => {
+                    if (!pendingAction) onAction({ action: 'pick', sku: item.sku, quantity: 1 })
+                  }}
                   aria-label={t('page.orderDetails.pickOne', { item: itemName })}
                 >
                   {complete ? <Check size={14} /> : <PackageCheck size={14} />}
@@ -155,7 +158,7 @@ function ReturnForm({
 
   function submitReturn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onAction({ action: 'return', reason })
+    if (!pendingAction) onAction({ action: 'return', reason })
   }
 
   return (
@@ -176,7 +179,12 @@ function ReturnForm({
         <button type="button" className="button-secondary" onClick={onCancel}>
           {t('page.orderDetails.cancel')}
         </button>
-        <button type="submit" className="button-primary" disabled={!actionIsAllowed || Boolean(pendingAction)}>
+        <button
+          type="submit"
+          className="button-primary"
+          disabled={!actionIsAllowed}
+          aria-disabled={pendingAction ? true : undefined}
+        >
           {t('page.orderDetails.recordReturn')}
         </button>
       </div>
@@ -230,8 +238,11 @@ function ActionControl({
     <button
       className="button-primary action-button"
       type="button"
-      disabled={!actionIsAllowed || Boolean(pendingAction)}
-      onClick={triggerAction}
+      disabled={!actionIsAllowed}
+      aria-disabled={pendingAction ? true : undefined}
+      onClick={() => {
+        if (!pendingAction) triggerAction()
+      }}
       title={!actionIsAllowed ? t('page.orderDetails.roleWarning', { role: requiredRoles }) : undefined}
     >
       <ActionIcon action={action} />
@@ -252,7 +263,9 @@ export function OrderActionPanel({ order, role, pendingAction, onAction }: Order
       <div className="detail-section-heading">
         <div>
           <span className="section-index">03</span>
-          <h3>{t('page.orderDetails.action')}</h3>
+          <h3 id="action-title" tabIndex={-1}>
+            {t('page.orderDetails.action')}
+          </h3>
         </div>
         {action && (
           <span className="role-requirement">

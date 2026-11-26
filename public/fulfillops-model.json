@@ -145,6 +145,7 @@
     "notice.ship": "Simulated shipment created with ParcelPilot.",
     "notice.return": "Return recorded.",
     "notice.recovered": "Confirmed. This was already recorded and was not repeated.",
+    "notice.pickProgress": "{{item}}: {{picked}} of {{ordered}} picked, {{remaining}} remaining.",
     "awaiting.title": "Waiting for confirmation",
     "awaiting.body": "We could not confirm the {{action}} for {{orderNumber}}. It may already be recorded. Retrying is safe and will not repeat it.",
     "awaiting.action.allocate": "allocation",

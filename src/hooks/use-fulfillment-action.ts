@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { performOrderAction } from '../api'
 import type { OrderActionInput } from '../api'
 import { displayApiError } from '../api-errors'
-import { useContent } from '../content-model'
+import { dataStringMap, useContent } from '../content-model'
 import { createActionIntent, isOutcomeUnknown, isSamePayload } from '../domain/action-intent'
 import type { ActionIntent } from '../domain/action-intent'
-import type { FulfillmentAction, FulfillmentOrder } from '../types'
+import type { FulfillmentAction, FulfillmentOrder, WorkflowResult } from '../types'
 
 export type WorkflowNotice = { tone: 'success' | 'error'; message: string }
 
@@ -49,6 +49,22 @@ export function useFulfillmentAction({ order, refreshData }: UseFulfillmentActio
     [discardAwaiting, model.messages, t],
   )
 
+  const describeSuccess = useCallback(
+    (intent: ActionIntent, result: WorkflowResult): string => {
+      if (result.replayed) return t('notice.recovered')
+      const { action, sku } = intent.input
+      const item = action === 'pick' ? result.order.items.find((candidate) => candidate.sku === sku) : undefined
+      if (!item) return t(`notice.${action}`)
+      return t('notice.pickProgress', {
+        item: dataStringMap(model, 'itemNames')[item.sku] ?? t('page.orderDetails.unknownItem'),
+        picked: item.pickedQuantity,
+        ordered: item.orderedQuantity,
+        remaining: item.orderedQuantity - item.pickedQuantity,
+      })
+    },
+    [model, t],
+  )
+
   const send = useCallback(
     async (intent: ActionIntent): Promise<void> => {
       inFlightRef.current = true
@@ -61,8 +77,7 @@ export function useFulfillmentAction({ order, refreshData }: UseFulfillmentActio
           intent.key,
         )
         if (intentRef.current === intent) discardAwaiting()
-        const message = result.replayed ? t('notice.recovered') : t(`notice.${intent.input.action}`)
-        setNotice({ tone: 'success', message })
+        setNotice({ tone: 'success', message: describeSuccess(intent, result) })
       } catch (error) {
         settleFailure(intent, error)
       } finally {
@@ -71,7 +86,7 @@ export function useFulfillmentAction({ order, refreshData }: UseFulfillmentActio
         refreshData()
       }
     },
-    [discardAwaiting, refreshData, settleFailure, t],
+    [describeSuccess, discardAwaiting, refreshData, settleFailure],
   )
 
   const runAction = useCallback(

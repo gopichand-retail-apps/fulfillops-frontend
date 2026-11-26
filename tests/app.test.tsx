@@ -153,6 +153,22 @@ describe('FulfillOps workspace', () => {
     expect(keys[1]).toBe(keys[0])
   })
 
+  it('returns keyboard focus to the selected row when leaving the order detail', async () => {
+    setupApi()
+    const user = userEvent.setup()
+    renderWithContent(<App initialNow={Date.parse('2026-11-01T13:00:00.000Z')} />)
+
+    const row = await screen.findByRole('button', { name: /FO-48291/ })
+    row.focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'FO-48291' })).toHaveFocus())
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Back to order queue' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /FO-48291/ })).toHaveFocus())
+  })
+
   it('shows safe API failure and retry behavior', async () => {
     setupApi()
     apiMocks.getOrders.mockRejectedValue(new TypeError('database secret'))

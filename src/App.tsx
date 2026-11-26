@@ -13,6 +13,7 @@ import { dataString, useContent } from './content-model'
 import { deriveOrderViews } from './domain/order-views'
 import type { QueueFilter, OrderView } from './domain/order-views'
 import { useDemoSession } from './hooks/use-demo-session'
+import { useFocusRescue } from './hooks/use-focus-rescue'
 import { useFulfillmentAction } from './hooks/use-fulfillment-action'
 import type { FulfillmentOrder, WorkflowSummary } from './types'
 
@@ -99,6 +100,10 @@ function App({ initialNow }: AppProps) {
     queueFilter,
   })
   const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null
+
+  useFocusRescue(mobileDetailOpen, !mobileDetailOpen, () =>
+    selectedOrder ? document.getElementById(`order-row-${selectedOrder.id}`) : null,
+  )
 
   function refreshData() {
     setIsLoading(true)

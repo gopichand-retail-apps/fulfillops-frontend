@@ -295,4 +295,25 @@ describe('useFulfillmentAction', () => {
     expect(second?.url).toContain('/orders/FO-1/actions')
     expect(second?.key).toBe(first?.key)
   })
+
+  it('announces the remaining quantity after a confirmed pick', async () => {
+    const pickedOrder: FulfillmentOrder = {
+      ...pickingOrder,
+      status: 'picking',
+      version: 2,
+      items: [
+        { sku: 'AUR-220', name: 'Studio headphones', location: 'A-03-14', orderedQuantity: 2, pickedQuantity: 1 },
+      ],
+    }
+    stubFetch(response({ order: pickedOrder, message: 'Picked 1 unit', replayed: false }, 201))
+    const refreshData = vi.fn()
+    const { result } = await renderActionHook({ order: pickingOrder, refreshData })
+
+    await act(async () => result.current.runAction(pickHeadphones))
+
+    expect(result.current.notice).toEqual({
+      tone: 'success',
+      message: 'Studio headphones: 1 of 2 picked, 1 remaining.',
+    })
+  })
 })
