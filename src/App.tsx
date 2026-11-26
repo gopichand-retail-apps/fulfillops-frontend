@@ -4,6 +4,7 @@ import { getOrders, getReturns, getSummary } from './api'
 import { displayApiError } from './api-errors'
 import { isMock } from './config'
 import './App.css'
+import AwaitingConfirmation from './components/AwaitingConfirmation'
 import OrderDetail from './components/OrderDetail'
 import QueuePanel from './components/QueuePanel'
 import StatusMessages from './components/StatusMessages'
@@ -110,10 +111,11 @@ function App({ initialNow }: AppProps) {
     setMobileDetailOpen(false)
   }
 
-  const { pendingAction, notice, setNotice, runAction, discardAwaiting } = useFulfillmentAction({
-    order: selectedOrder,
-    refreshData,
-  })
+  const { pendingAction, awaiting, notice, setNotice, runAction, retryAwaiting, discardAwaiting } =
+    useFulfillmentAction({
+      order: selectedOrder,
+      refreshData,
+    })
 
   return (
     <div className="app-shell" data-mode={isMock ? 'mock' : 'live'}>
@@ -200,6 +202,15 @@ function App({ initialNow }: AppProps) {
             onRetrySession={() => window.location.reload()}
             onDismissNotice={() => setNotice(null)}
           />
+
+          {awaiting && (
+            <AwaitingConfirmation
+              awaiting={awaiting}
+              busy={pendingAction !== null}
+              onRetry={() => void retryAwaiting()}
+              onDiscard={discardAwaiting}
+            />
+          )}
 
           <section className={mobileDetailOpen ? 'workbench detail-open' : 'workbench'}>
             <QueuePanel

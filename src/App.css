@@ -483,6 +483,41 @@
   cursor: pointer;
 }
 
+.awaiting-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  min-height: 44px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  color: #5f4206;
+  background: #fff6dc;
+  border: 1px solid #e6c97a;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.awaiting-copy {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.awaiting-copy p {
+  margin: 2px 0 0;
+}
+
+.awaiting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.awaiting-actions .button-primary[aria-disabled='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 .workbench {
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(420px, 1.06fr);
