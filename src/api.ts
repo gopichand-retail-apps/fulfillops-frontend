@@ -19,13 +19,52 @@ export type OrderActionInput = {
   reason?: ReturnReason
 }
 
+/** An action whose reply has not arrived by then is treated as an unknown outcome, not a failure. */
+export const ACTION_TIMEOUT_MS = 10_000
+
 export class ApiRequestError extends Error {
   readonly code: string
+  readonly status: number | undefined
 
-  constructor(code: string) {
+  constructor(code: string, status?: number) {
     super(code)
     this.code = code
+    this.status = status
     this.name = 'ApiRequestError'
+  }
+}
+
+type RawResponse = { response: Response; payload: unknown }
+
+async function fetchJson(path: string, options: RequestInit, timeoutMs?: number): Promise<RawResponse> {
+  const headers = new Headers(options.headers)
+  headers.set('Accept', 'application/json')
+  headers.set('X-Request-Id', crypto.randomUUID())
+  if (options.body) headers.set('Content-Type', 'application/json')
+
+  const timeout = timeoutMs === undefined ? null : new AbortController()
+  let timedOut = false
+  const timer = timeout
+    ? globalThis.setTimeout(() => {
+        timedOut = true
+        timeout.abort()
+      }, timeoutMs)
+    : undefined
+
+  try {
+    const response = await fetch(`${apiRoot}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+      ...(timeout ? { signal: timeout.signal } : {}),
+    })
+    const payload: unknown = await response.json().catch(() => null)
+    if (timedOut) throw new ApiRequestError('REQUEST_TIMEOUT')
+    return { response, payload }
+  } catch (error) {
+    throw timedOut ? new ApiRequestError('REQUEST_TIMEOUT') : error
+  } finally {
+    globalThis.clearTimeout(timer)
   }
 }
 
@@ -33,28 +72,19 @@ async function requestData<TSchema extends z.ZodType>(
   path: string,
   dataSchema: TSchema,
   options: RequestInit = {},
+  timeoutMs?: number,
 ): Promise<z.infer<TSchema>> {
-  const headers = new Headers(options.headers)
-  headers.set('Accept', 'application/json')
-  headers.set('X-Request-Id', crypto.randomUUID())
-  if (options.body) headers.set('Content-Type', 'application/json')
-
-  const response = await fetch(`${apiRoot}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  })
-  const payload: unknown = await response.json().catch(() => null)
+  const { response, payload } = await fetchJson(path, options, timeoutMs)
 
   if (!response.ok) {
     const error = apiErrorSchema.safeParse(payload)
-    throw new ApiRequestError(error.success ? error.data.code : 'REQUEST_FAILED')
+    throw new ApiRequestError(error.success ? error.data.code : 'REQUEST_FAILED', response.status)
   }
 
   const envelope = successEnvelopeSchema.safeParse(payload)
-  if (!envelope.success) throw new ApiRequestError('INVALID_RESPONSE')
+  if (!envelope.success) throw new ApiRequestError('INVALID_RESPONSE', response.status)
   const data = dataSchema.safeParse(envelope.data.data)
-  if (!data.success) throw new ApiRequestError('INVALID_CONTENT')
+  if (!data.success) throw new ApiRequestError('INVALID_CONTENT', response.status)
   return data.data
 }
 
@@ -91,12 +121,20 @@ export function getSummary(signal: AbortSignal) {
   return requestData('/summary', workflowSummarySchema, { signal })
 }
 
-export function performOrderAction(orderId: string, action: OrderActionInput & { version: number }) {
-  return requestData(`/orders/${encodeURIComponent(orderId)}/actions`, workflowResultSchema, {
-    method: 'POST',
-    headers: {
-      'Idempotency-Key': crypto.randomUUID(),
+/** The caller owns the key: one key per confirmed intent, reused for every retry of it. */
+export function performOrderAction(
+  orderId: string,
+  action: OrderActionInput & { version: number },
+  idempotencyKey: string,
+) {
+  return requestData(
+    `/orders/${encodeURIComponent(orderId)}/actions`,
+    workflowResultSchema,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(action),
     },
-    body: JSON.stringify(action),
-  })
+    ACTION_TIMEOUT_MS,
+  )
 }

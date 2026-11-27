@@ -144,6 +144,18 @@
     "notice.pack": "Package sealed and ready for shipment.",
     "notice.ship": "Simulated shipment created with ParcelPilot.",
     "notice.return": "Return recorded.",
+    "notice.recovered": "Confirmed. This was already recorded and was not repeated.",
+    "notice.pickProgress": "{{item}}: {{picked}} of {{ordered}} picked, {{remaining}} remaining.",
+    "awaiting.title": "Waiting for confirmation",
+    "awaiting.body": "We could not confirm the {{action}} for {{orderNumber}}. It may already be recorded. Retrying is safe and will not repeat it.",
+    "awaiting.action.allocate": "allocation",
+    "awaiting.action.pick": "pick",
+    "awaiting.action.pack": "packing",
+    "awaiting.action.ship": "shipment",
+    "awaiting.action.return": "return",
+    "awaiting.retry": "Retry safely",
+    "awaiting.discard": "Discard attempt",
+    "awaiting.working": "Confirming…",
     "errors.requestFailed": "The request could not be completed.",
     "errors.network": "The API could not be reached. Check the local services and retry.",
     "errors.INVALID_TRANSITION": "This action is not available at the current order step.",
@@ -160,7 +172,8 @@
     "errors.RETURN_REASON_REQUIRED": "Choose a return reason.",
     "errors.ORDER_NOT_FOUND": "Order not found.",
     "errors.INVALID_RESPONSE": "The API returned an invalid response.",
-    "errors.INVALID_CONTENT": "The API returned data that did not match its contract."
+    "errors.INVALID_CONTENT": "The API returned data that did not match its contract.",
+    "errors.REQUEST_TIMEOUT": "The API took too long to answer."
   },
   "data": {
     "warehouseName": "North DC",

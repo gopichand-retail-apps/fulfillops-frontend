@@ -18,6 +18,7 @@ export default function OrderRow({ order, now, selected, onSelect }: OrderRowPro
 
   return (
     <button
+      id={`order-row-${order.id}`}
       className={selected ? 'order-row selected' : 'order-row'}
       type="button"
       onClick={() => onSelect(order.id)}

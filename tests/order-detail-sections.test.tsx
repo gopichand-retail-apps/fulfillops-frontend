@@ -96,4 +96,30 @@ describe('Order detail workflow sections', () => {
     await screen.findByText('Next action')
     expect(screen.getByText('Return complete')).toBeVisible()
   })
+
+  it('keeps pick and action controls focusable but inert while an action is pending', async () => {
+    const onAction = vi.fn()
+    renderWithContent(
+      <>
+        <OrderItems order={makeOrder('picking')} role="picker" pendingAction="pick" onAction={onAction} />
+        <OrderActionPanel
+          order={makeOrder('accepted')}
+          role="warehouse_manager"
+          pendingAction="allocate"
+          onAction={onAction}
+        />
+      </>,
+    )
+
+    const [incompletePick] = await screen.findAllByRole('button', { name: /Pick one/ })
+    if (!incompletePick) throw new Error('Expected an incomplete pick button.')
+    expect(incompletePick).not.toBeDisabled()
+    expect(incompletePick).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(incompletePick)
+    const working = screen.getByRole('button', { name: 'Working…' })
+    expect(working).not.toBeDisabled()
+    expect(working).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(working)
+    expect(onAction).not.toHaveBeenCalled()
+  })
 })

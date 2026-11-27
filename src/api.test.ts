@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ACTION_TIMEOUT_MS,
   ApiRequestError,
   createDemoSession,
   endDemoSession,
@@ -97,14 +98,16 @@ describe('FulfillOps API client', () => {
         ),
       )
     await expect(endDemoSession()).resolves.toEqual({ loggedOut: true })
-    await expect(performOrderAction('FO-48291', { action: 'allocate', version: 1 })).resolves.toMatchObject({
+    await expect(
+      performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0001'),
+    ).resolves.toMatchObject({
       order,
       replayed: false,
     })
 
     const [, actionInit] = fetchMock.mock.calls[1] ?? []
     const headers = new Headers(actionInit?.headers)
-    expect(headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(headers.get('Idempotency-Key')).toBe('intent-key-0001')
     expect(headers.has('X-Demo-Role')).toBe(false)
     expect(actionInit).toMatchObject({ credentials: 'include', method: 'POST' })
   })
@@ -132,7 +135,9 @@ describe('FulfillOps API client', () => {
       .mockResolvedValueOnce(jsonResponse({ code: 'ROLE_NOT_ALLOWED', message: 'private server detail' }, 403))
       .mockResolvedValueOnce(jsonResponse({ data: { profile: { role: 'owner' } }, requestId: 'bad' }))
 
-    await expect(performOrderAction('FO-48291', { action: 'allocate', version: 1 })).rejects.toMatchObject({
+    await expect(
+      performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0002'),
+    ).rejects.toMatchObject({
       code: 'ROLE_NOT_ALLOWED',
       message: 'ROLE_NOT_ALLOWED',
     })
@@ -150,5 +155,90 @@ describe('FulfillOps API client', () => {
     await expect(getSummary(new AbortController().signal)).rejects.toMatchObject({
       code: 'REQUEST_FAILED',
     })
+  })
+
+  it('sends the caller key unchanged and a fresh X-Request-Id for each attempt', async () => {
+    const result = { order, message: 'Inventory allocated.', replayed: false }
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: result, requestId: 'request-attempt-01' }, 201))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { ...result, replayed: true }, requestId: 'request-attempt-02' }, 201),
+      )
+    const input = { action: 'allocate', version: 1 } as const
+
+    await performOrderAction('FO-48291', input, 'intent-key-0003')
+    await performOrderAction('FO-48291', input, 'intent-key-0003')
+
+    const [first, second] = fetchMock.mock.calls.map(([, init]) => new Headers(init?.headers))
+    expect(first?.get('Idempotency-Key')).toBe('intent-key-0003')
+    expect(second?.get('Idempotency-Key')).toBe('intent-key-0003')
+    expect(first?.get('X-Request-Id')).toBeTruthy()
+    expect(second?.get('X-Request-Id')).not.toBe(first?.get('X-Request-Id'))
+  })
+
+  it('reports the HTTP status on request errors', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: 'raw detail' }, 502))
+      .mockResolvedValueOnce(jsonResponse({ code: 'INTERNAL_ERROR', message: 'detail', requestId: 'r-500' }, 500))
+      .mockResolvedValueOnce(jsonResponse({ data: 'not a workflow result', requestId: 'r-201' }, 201))
+      .mockResolvedValueOnce(jsonResponse({ unexpected: true }, 201))
+    const input = { action: 'allocate', version: 1 } as const
+
+    await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
+      code: 'REQUEST_FAILED',
+      status: 502,
+    })
+    await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      status: 500,
+    })
+    await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
+      code: 'INVALID_CONTENT',
+      status: 201,
+    })
+    await expect(performOrderAction('FO-48291', input, 'intent-key-0004')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      status: 201,
+    })
+  })
+
+  it('turns a reply that never arrives into a timeout error', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          }),
+      )
+      const request = performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0005')
+      const assertion = expect(request).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+
+      await vi.advanceTimersByTimeAsync(ACTION_TIMEOUT_MS)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('turns a reply whose body stops arriving into a timeout error', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation(async (_url, init) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            init?.signal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')))
+          },
+        })
+        return new Response(body, { status: 201, headers: { 'Content-Type': 'application/json' } })
+      })
+      const request = performOrderAction('FO-48291', { action: 'allocate', version: 1 }, 'intent-key-0006')
+      const assertion = expect(request).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+
+      await vi.advanceTimersByTimeAsync(ACTION_TIMEOUT_MS)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

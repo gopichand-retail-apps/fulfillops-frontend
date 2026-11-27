@@ -55,7 +55,7 @@ npm audit
 npm run build
 ```
 
-The current frontend suite has 55 tests and passes its 90% aggregate
+The current frontend suite has 100 tests and passes its 90% aggregate
 statements/branches/functions/lines thresholds. Current per-file coverage gaps
 are recorded in [validation status](docs/architecture.md#13-dated-verification-and-limitations); the aggregate gate
 does not imply that each UI module meets 90%.
@@ -69,7 +69,32 @@ starts both repositories on isolated ports and verifies the API-backed profile
 session and allocate -> pick -> pack -> simulated ship -> return workflow in
 both `VITE_IS_MOCK=true` and `VITE_IS_MOCK=false` endpoint-selection modes,
 including the mobile order-detail view. The nonselected endpoint is unreachable
-in each run.
+in each run. `lost-reply-recovery.spec.ts` drops the reply to an applied pick and checks that
+"Retry safely" resends the same key and the order is picked once. `keyboard-and-layout.spec.ts`
+checks for no horizontal overflow at 320, 390, 768 and 1280 px, 44 px handheld controls,
+a keyboard-only pick at 320 px, and the recovery banner at 320 px. On Windows, run the browser checks through
+`../../scripts/fulfillops.e2e.config.mjs` after building the API (entry `dist/src/main.js`).
+
+## Write safety and recovery
+
+Allocate, pick, pack, ship and return requests follow the stable intent key pattern (Stage B, FUL-04 slice):
+
+- The `Idempotency-Key` is created when the operator confirms an action and is held in memory only, never in
+  browser storage.
+- A retry, or pressing the same action again while it is unresolved, resends the same key and the order version
+  captured at confirmation, so the API replays its first result instead of applying the action twice. Each attempt
+  still sends its own `X-Request-Id`.
+- A different item, quantity, reason or action gets a new key. A confirmed result, a definitive rejection (for
+  example a stale order or a role denial) or a warehouse profile change discards the key.
+- When the outcome is unknown (network failure, no reply within 10 seconds, a 5xx, or an unreadable reply), a
+  "Waiting for confirmation" banner offers "Retry safely" and "Discard attempt". A replayed result reads
+  "Confirmed. This was already recorded and was not repeated."
+
+Keyboard and handheld use: opening an order in the handheld layout moves focus to the order heading; Back returns
+focus to the same queue row; after each confirmed change focus moves to the next pickable line (or the next-action
+heading); controls stay focusable while a request is pending; a confirmed pick announces the remaining quantity
+through the status message. Handheld Back, pick and recovery-banner controls are at least 44 px tall. The "Packed today" figure is
+computed by the API (see the backend README for `WAREHOUSE_TIME_ZONE`).
 
 ## Demo limits
 

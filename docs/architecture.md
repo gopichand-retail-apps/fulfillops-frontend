@@ -172,6 +172,43 @@ sequenceDiagram
     UI-->>Operator: Updated status or recoverable error
 ```
 
+### Write retries, lost replies and recovery (Stage B, FUL-04 slice)
+
+[src/hooks/use-fulfillment-action.ts](../src/hooks/use-fulfillment-action.ts) owns one in-memory
+`ActionIntent` ([src/domain/action-intent.ts](../src/domain/action-intent.ts)): the `Idempotency-Key` and the
+order version are fixed when the operator confirms. [src/api.ts](../src/api.ts) sends the caller's key, a fresh
+`X-Request-Id` per attempt, and maps a reply that has not arrived after 10 seconds to `REQUEST_TIMEOUT`.
+
+| Attempt outcome | Classification | Intent | Visible state |
+| --- | --- | --- | --- |
+| 2xx readable | confirmed | discarded | success notice; replay shows the recovered message |
+| Network failure, timeout, 5xx, unreadable 2xx | unknown (`isOutcomeUnknown`) | kept | error notice and "Waiting for confirmation" banner |
+| 4xx with a code (stale order, invalid transition, role) | definitive | discarded | mapped error notice |
+| Same payload triggered again while kept | retry | reused (same key and version) | as above |
+| Different payload, profile change, "Discard attempt" | abandoned | replaced or discarded | banner cleared |
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant UI as FulfillOps UI
+    participant API as NestJS API
+    Operator->>UI: Confirm "Pick one"
+    UI->>UI: Create intent (key K, version v)
+    UI->>API: POST actions (K, X-Request-Id r1, version v)
+    API-->>API: Apply pick, store replay for K
+    API--xUI: Reply lost
+    UI-->>Operator: Waiting for confirmation (Retry safely / Discard attempt)
+    Operator->>UI: Retry safely
+    UI->>API: POST actions (K, X-Request-Id r2, version v)
+    API-->>UI: Replayed result (replayed: true)
+    UI-->>Operator: Confirmed. This was already recorded and was not repeated.
+```
+
+Overlapping triggers send one request. A refresh after a failure may show the server's new version; the kept
+intent still sends the version captured at confirmation, so the API replays instead of returning `STALE_ORDER`.
+Server replay records live in API memory (1,000 entries) and are lost on API restart; durable replay is Part B
+(FUL-01), not implemented.
+
 ## 6. Domain, persistence, and data ownership
 
 The frontend consumes server-owned domain records; its model supplies presentation and synthetic display content. Local UI state cannot replace backend transaction or authorization decisions.
@@ -283,7 +320,7 @@ Keep private credentials out of public models, browser bundles, logs, URLs, and 
 
 ## 9. Design, accessibility, and platform adapters
 
-The existing product styling is authored in [src/App.css](../src/App.css), [src/index.css](../src/index.css). Preserve its tokens, layout density, fonts/assets, breakpoints, and component states. User-facing strings/locale rules follow the active validated model. WCAG 2.2 AA is a target, not a verified conformance claim: keyboard/focus/dialog behavior, zoom/reflow, contrast, reduced motion, and screen readers require their applicable checks. No redesign or new visual measurements were performed here. Native/mobile packaging and device adapters are **not implemented by this web repository**.
+The existing product styling is authored in [src/App.css](../src/App.css), [src/index.css](../src/index.css). Preserve its tokens, layout density, fonts/assets, breakpoints, and component states. User-facing strings/locale rules follow the active validated model. WCAG 2.2 AA is a target, not a verified conformance claim: keyboard/focus/dialog behavior, zoom/reflow, contrast, reduced motion, and screen readers require their applicable checks. No redesign was performed. Stage B (2026-11-26) added handheld focus rules: opening an order in the handheld layout focuses its heading, Back returns focus to the queue row, focus moves to the next pickable line or the next-action heading after a confirmed change ([src/hooks/use-focus-rescue.ts](../src/hooks/use-focus-rescue.ts)), pending controls use `aria-disabled` so focus is kept, and Back, pick and recovery-banner controls are 44 px tall at 820 px and below. Playwright measured no horizontal overflow at 320, 390, 768 and 1280 px in the queue, order detail and returns views; screen-reader, zoom and contrast checks were not run. Native/mobile packaging and device adapters are **not implemented by this web repository**.
 
 ## 10. Build, checks, and deployment
 
@@ -342,6 +379,8 @@ The two Git repositories remain separate. Each owns one maintained README and th
 | ------------------------------- | ----------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Repository-local architecture   | Guide available in this checkout and linked from README           | docs/architecture.md; README.md    | Documented and validated                                      | File, link, and diagram checks         | Keep documentation consistent with source changes                                                                                                                                                                                                 |
 | UI composition and API boundary | Preserve existing workflows and failure states                    | src/api-errors.ts and source map   | Implemented; application verification limits are listed below | Current source and existing app design | All server state resets on API restart. The archived production entry and browser command are incorrect for this Windows setup; use dist/src/main.js and the workspace E2E adapter. Real warehouse authorization and durable state remain absent. |
+| Stable write keys (FUL-04 slice) | Lost reply plus retry applies once; changed payload gets a new key | src/domain/action-intent.ts; src/hooks/use-fulfillment-action.ts | Implemented 2026-11-26 | tests/use-fulfillment-action.test.tsx; tests/e2e/lost-reply-recovery.spec.ts (both data modes) | Replay memory is per API process; restart loses it until FUL-01 |
+| Handheld keyboard and 320 px    | Keyboard-only pick at 320 px; no overflow at 320/390/768/1280 | src/components; src/hooks/use-focus-rescue.ts; src/App.css | Implemented 2026-11-26 | tests/e2e/keyboard-and-layout.spec.ts; unit focus tests | Screen reader and zoom not verified |
 | Public deployment               | Verified identity, data durability, recovery, and hosted behavior | Existing deployment/API boundaries | Needs separate hardening/verification                         | No new hosted evidence                 | Local checks do not establish production readiness                                                                                                                                                                                                |
 
 ## 13. Dated verification and limitations
@@ -358,6 +397,14 @@ The baseline results below record earlier validation. Re-run the listed commands
 Previously recorded application verification:
 
 No additional per-app verification block existed in the source guide; refer to the original validation ledger.
+
+Stage B FUL-04 slice, 2026-11-26, branch `feature/ful-04-packed-today-and-keys`, Node 24.15.0 on Windows:
+
+- `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd run build`: passed.
+- `npm.cmd run test:cov`: 100 tests in 18 files passed; statements 95.92%, branches 92.63%, functions 93.84%, lines 97.51%.
+- Portable Prettier check passed; `npm.cmd run format:check` still fails on Windows because the script's single-quoted globs are passed literally (pre-existing).
+- Playwright through `scripts/fulfillops.e2e.config.mjs`: 11 passed with `VITE_IS_MOCK=true` and 11 passed with `VITE_IS_MOCK=false` and `VITE_REAL_API_BASE_URL=http://127.0.0.1:5212/api/v1`.
+- Not run: `npm audit`, hosted CI, Vercel, screen readers, zoom/contrast tooling, real devices.
 
 ## 14. Extension rules and companion repository
 

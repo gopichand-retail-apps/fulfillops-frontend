@@ -4,6 +4,7 @@ import { getOrders, getReturns, getSummary } from './api'
 import { displayApiError } from './api-errors'
 import { isMock } from './config'
 import './App.css'
+import AwaitingConfirmation from './components/AwaitingConfirmation'
 import OrderDetail from './components/OrderDetail'
 import QueuePanel from './components/QueuePanel'
 import StatusMessages from './components/StatusMessages'
@@ -12,6 +13,7 @@ import { dataString, useContent } from './content-model'
 import { deriveOrderViews } from './domain/order-views'
 import type { QueueFilter, OrderView } from './domain/order-views'
 import { useDemoSession } from './hooks/use-demo-session'
+import { useFocusRescue } from './hooks/use-focus-rescue'
 import { useFulfillmentAction } from './hooks/use-fulfillment-action'
 import type { FulfillmentOrder, WorkflowSummary } from './types'
 
@@ -99,6 +101,10 @@ function App({ initialNow }: AppProps) {
   })
   const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null
 
+  useFocusRescue(mobileDetailOpen, !mobileDetailOpen, () =>
+    selectedOrder ? document.getElementById(`order-row-${selectedOrder.id}`) : null,
+  )
+
   function refreshData() {
     setIsLoading(true)
     setLoadError(null)
@@ -110,10 +116,11 @@ function App({ initialNow }: AppProps) {
     setMobileDetailOpen(false)
   }
 
-  const { pendingAction, notice, setNotice, runAction } = useFulfillmentAction({
-    order: selectedOrder,
-    refreshData,
-  })
+  const { pendingAction, awaiting, notice, setNotice, runAction, retryAwaiting, discardAwaiting } =
+    useFulfillmentAction({
+      order: selectedOrder,
+      refreshData,
+    })
 
   return (
     <div className="app-shell" data-mode={isMock ? 'mock' : 'live'}>
@@ -134,7 +141,10 @@ function App({ initialNow }: AppProps) {
           view={view}
           profiles={profiles}
           rolesLoading={rolesLoading}
-          onProfileChange={(profileId) => void changeProfile(profileId)}
+          onProfileChange={(profileId) => {
+            discardAwaiting()
+            void changeProfile(profileId)
+          }}
           onViewChange={chooseView}
         />
 
@@ -197,6 +207,15 @@ function App({ initialNow }: AppProps) {
             onRetrySession={() => window.location.reload()}
             onDismissNotice={() => setNotice(null)}
           />
+
+          {awaiting && (
+            <AwaitingConfirmation
+              awaiting={awaiting}
+              busy={pendingAction !== null}
+              onRetry={() => void retryAwaiting()}
+              onDiscard={discardAwaiting}
+            />
+          )}
 
           <section className={mobileDetailOpen ? 'workbench detail-open' : 'workbench'}>
             <QueuePanel

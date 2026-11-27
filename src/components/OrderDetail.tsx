@@ -1,7 +1,9 @@
 import { ArrowLeft, Clock3, MapPin, ShieldCheck, Truck } from 'lucide-react'
+import { useRef } from 'react'
 import type { OrderActionInput } from '../api'
 import { channelLabel, formatDeadline, formatTime } from '../formatters'
 import { useContent } from '../content-model'
+import { useFocusRescue } from '../hooks/use-focus-rescue'
 import type { DemoRole, FulfillmentOrder } from '../types'
 import StatusBadge from './StatusBadge'
 import { OrderActionPanel, OrderItems, OrderProgress } from './OrderDetailSections'
@@ -27,9 +29,21 @@ export default function OrderDetail({
 }: OrderDetailProps) {
   const { model, t } = useContent()
   const isLate = Date.parse(order.promisedAt) < now
+  const panelRef = useRef<HTMLElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  useFocusRescue(mobileOpen, mobileOpen, () => headingRef.current)
+  useFocusRescue(
+    order.version,
+    true,
+    () =>
+      panelRef.current?.querySelector<HTMLElement>('.pick-unit:not(:disabled)') ??
+      panelRef.current?.querySelector<HTMLElement>('#action-title'),
+  )
 
   return (
     <section
+      ref={panelRef}
       className={mobileOpen ? 'detail-panel mobile-visible' : 'detail-panel'}
       aria-label={t('page.orderDetails.label', { orderNumber: order.orderNumber })}
     >
@@ -40,7 +54,9 @@ export default function OrderDetail({
         <div>
           <p className="eyebrow">{t('page.orderDetails.eyebrow')}</p>
           <div className="detail-title-row">
-            <h2>{order.orderNumber}</h2>
+            <h2 ref={headingRef} tabIndex={-1}>
+              {order.orderNumber}
+            </h2>
             <StatusBadge status={order.status} />
           </div>
         </div>

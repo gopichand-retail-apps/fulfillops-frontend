@@ -94,11 +94,79 @@ describe('FulfillOps workspace', () => {
 
     await user.click(allocate)
     await waitFor(() => {
-      expect(apiMocks.performOrderAction).toHaveBeenCalledWith('FO-48291', {
-        action: 'allocate',
-        version: 1,
-      })
+      expect(apiMocks.performOrderAction).toHaveBeenCalledWith(
+        'FO-48291',
+        { action: 'allocate', version: 1 },
+        expect.any(String),
+      )
     })
+  })
+
+  it('reuses the intent key on retry and discards it when the warehouse profile changes', async () => {
+    setupApi()
+    apiMocks.performOrderAction.mockRejectedValue(new TypeError('Failed to fetch'))
+    const user = userEvent.setup()
+    renderWithContent(<App initialNow={Date.parse('2026-11-01T13:00:00.000Z')} />)
+
+    const profileSelect = await screen.findByLabelText('Warehouse profile')
+    await screen.findByRole('button', { name: /FO-48291/ })
+    await user.selectOptions(profileSelect, 'warehouse_manager')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(2))
+
+    await user.selectOptions(profileSelect, 'packer')
+    await user.selectOptions(profileSelect, 'warehouse_manager')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+    await waitFor(() => expect(apiMocks.performOrderAction).toHaveBeenCalledTimes(3))
+
+    const keys = apiMocks.performOrderAction.mock.calls.map((call: unknown[]) => call[2])
+    expect(keys[1]).toBe(keys[0])
+    expect(keys[2]).not.toBe(keys[0])
+  })
+
+  it('shows the awaiting-confirmation banner after a lost reply and clears it after a safe retry', async () => {
+    setupApi()
+    apiMocks.performOrderAction.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce({
+      order: { ...order, status: 'allocated', version: 2 },
+      message: 'Inventory allocated.',
+      replayed: true,
+    })
+    const user = userEvent.setup()
+    renderWithContent(<App initialNow={Date.parse('2026-11-01T13:00:00.000Z')} />)
+
+    const profileSelect = await screen.findByLabelText('Warehouse profile')
+    await screen.findByRole('button', { name: /FO-48291/ })
+    await user.selectOptions(profileSelect, 'warehouse_manager')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Allocate order' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Allocate order' }))
+
+    expect(await screen.findByText('Waiting for confirmation')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Retry safely' }))
+    expect(await screen.findByText('Confirmed. This was already recorded and was not repeated.')).toBeVisible()
+    expect(screen.queryByText('Waiting for confirmation')).toBeNull()
+    const keys = apiMocks.performOrderAction.mock.calls.map((call: unknown[]) => call[2])
+    expect(keys[1]).toBe(keys[0])
+  })
+
+  it('returns keyboard focus to the selected row when leaving the order detail', async () => {
+    setupApi()
+    const user = userEvent.setup()
+    renderWithContent(<App initialNow={Date.parse('2026-11-01T13:00:00.000Z')} />)
+
+    const row = await screen.findByRole('button', { name: /FO-48291/ })
+    row.focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'FO-48291' })).toHaveFocus())
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Back to order queue' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /FO-48291/ })).toHaveFocus())
   })
 
   it('shows safe API failure and retry behavior', async () => {

@@ -1,7 +1,9 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import OrderDetail from '../src/components/OrderDetail'
+import { ContentProvider } from '../src/content'
 import type { FulfillmentOrder } from '../src/types'
+import type { ReactElement } from 'react'
 import { renderWithContent } from './test-utils'
 
 function makeOrder(status: FulfillmentOrder['status']): FulfillmentOrder {
@@ -69,5 +71,99 @@ describe('OrderDetail', () => {
     await screen.findByRole('heading', { name: 'FO-1' })
     expect(document.querySelector('.detail-panel')?.className).toContain('mobile-visible')
     expect(screen.getByText('SIM-FO1-01')).toBeVisible()
+  })
+
+  function pickOrder(items: Array<[string, number, number]>, version: number): FulfillmentOrder {
+    const allPicked = items.every(([, ordered, picked]) => picked === ordered)
+    return {
+      ...makeOrder(allPicked ? 'picked' : 'picking'),
+      version,
+      items: items.map(([sku, orderedQuantity, pickedQuantity]) => ({
+        sku,
+        name: sku,
+        location: 'A-01-01',
+        orderedQuantity,
+        pickedQuantity,
+      })),
+    }
+  }
+
+  function detail(order: FulfillmentOrder, mobileOpen: boolean): ReactElement {
+    return (
+      <OrderDetail
+        order={order}
+        now={Date.parse('2026-11-01T13:00:00.000Z')}
+        role="picker"
+        pendingAction={null}
+        mobileOpen={mobileOpen}
+        onBack={vi.fn()}
+        onAction={vi.fn()}
+      />
+    )
+  }
+
+  /** RTL's rerender replaces the whole tree, so keep the provider that renderWithContent added. */
+  function withContent(element: ReactElement): ReactElement {
+    return (
+      <ContentProvider appId="fulfillops" modelUrl="/fulfillops-model.json">
+        {element}
+      </ContentProvider>
+    )
+  }
+
+  it('moves focus to the order heading when the mobile detail opens', async () => {
+    const order = makeOrder('accepted')
+    const { rerender } = renderWithContent(detail(order, false))
+    await screen.findByRole('heading', { name: 'FO-1' })
+
+    rerender(withContent(detail(order, true)))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'FO-1' })).toHaveFocus())
+  })
+
+  it('moves focus to the next pick line, then to the next action, as lines complete', async () => {
+    const first = pickOrder(
+      [
+        ['AUR-220', 1, 0],
+        ['CAB-118', 1, 0],
+      ],
+      4,
+    )
+    const { rerender } = renderWithContent(detail(first, true))
+    const buttons = await screen.findAllByRole('button', { name: /Pick one/ })
+    buttons[0]?.focus()
+
+    rerender(
+      withContent(
+        detail(
+          pickOrder(
+            [
+              ['AUR-220', 1, 1],
+              ['CAB-118', 1, 0],
+            ],
+            5,
+          ),
+          true,
+        ),
+      ),
+    )
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Pick one/ })[1]).toHaveFocus())
+
+    rerender(
+      withContent(
+        detail(
+          pickOrder(
+            [
+              ['AUR-220', 1, 1],
+              ['CAB-118', 1, 1],
+            ],
+            6,
+          ),
+          true,
+        ),
+      ),
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Next action' })).toHaveFocus())
+    expect(document.activeElement).not.toBe(document.body)
   })
 })
